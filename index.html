@@ -360,32 +360,93 @@ self.addEventListener('fetch',e=>{
   </script>
 </head>
 <body>
-<div id="pw-gate" style="position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-  <div style="background:rgba(255,255,255,0.07);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:40px 36px;width:90%;max-width:360px;text-align:center;">
+<div id="license-gate" style="position:fixed;inset:0;z-index:99999;background:linear-gradient(135deg,#1e1b4b 0%,#312e81 50%,#4c1d95 100%);display:flex;align-items:center;justify-content:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="background:rgba(255,255,255,0.07);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.15);border-radius:20px;padding:40px 36px;width:90%;max-width:380px;text-align:center;">
     <div style="font-size:48px;margin-bottom:16px;">💊</div>
     <h1 style="color:#fff;font-size:22px;font-weight:700;margin:0 0 6px">Farmáco</h1>
     <p style="color:rgba(255,255,255,0.55);font-size:13px;margin:0 0 28px">Guia do Médico Generalista</p>
-    <input id="pw-input" type="password" placeholder="Senha de acesso" onkeydown="if(event.key==='Enter')pw_check()" style="width:100%;box-sizing:border-box;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:15px;outline:none;margin-bottom:12px;"/>
-    <button onclick="pw_check()" style="width:100%;padding:13px;border-radius:10px;border:none;background:#6366f1;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">Entrar</button>
-    <div id="pw-err" style="display:none;margin-top:12px;color:#f87171;font-size:13px;">Senha incorreta</div>
+    <input id="license-input" type="text" placeholder="Chave de licença (FARM-XXXX-XXXX)" onkeydown="if(event.key==='Enter')lc_check()" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="width:100%;box-sizing:border-box;padding:12px 16px;border-radius:10px;border:1px solid rgba(255,255,255,0.2);background:rgba(255,255,255,0.1);color:#fff;font-size:14px;outline:none;margin-bottom:12px;letter-spacing:0.05em;text-align:center;"/>
+    <button id="license-btn" onclick="lc_check()" style="width:100%;padding:13px;border-radius:10px;border:none;background:#6366f1;color:#fff;font-size:15px;font-weight:600;cursor:pointer;">Ativar</button>
+    <div id="license-loading" style="display:none;margin-top:12px;color:rgba(255,255,255,0.6);font-size:13px;">Verificando…</div>
+    <div id="license-err" style="display:none;margin-top:12px;color:#f87171;font-size:13px;"></div>
+    <p style="margin-top:20px;color:rgba(255,255,255,0.3);font-size:11px;">Adquira em farmaco.com.br</p>
   </div>
 </div>
 <script>
 (function(){
-  if(localStorage.getItem('farmaco_v1')==='sim'){
-    document.getElementById('pw-gate').style.display='none';
-  }
-  window.pw_check=function(){
-    var v=document.getElementById('pw-input').value;
-    if(v==='Farmaco360'){
-      localStorage.setItem('farmaco_v1','sim');
-      document.getElementById('pw-gate').style.display='none';
-      document.getElementById('pw-err').style.display='none';
-    } else {
-      document.getElementById('pw-err').style.display='block';
-      document.getElementById('pw-input').value='';
-      document.getElementById('pw-input').focus();
+  // ⚠️ Substitua pela URL do seu Cloudflare Worker após criá-lo
+  var WORKER_URL = 'https://farmaco-validator.lemosafonsopedro682.workers.dev';
+  var STORAGE_KEY = 'farmaco_license_v1';
+
+  // Verificar auth armazenada
+  try {
+    var stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (stored && stored.valid) {
+      document.getElementById('license-gate').style.display = 'none';
+      return;
     }
+  } catch(e) {}
+
+  window.lc_check = function() {
+    var input = document.getElementById('license-input');
+    var btn   = document.getElementById('license-btn');
+    var load  = document.getElementById('license-loading');
+    var err   = document.getElementById('license-err');
+    var key   = input.value.trim().toUpperCase();
+
+    if (!key) return;
+
+    // Chave mestra — acesso VIP sem chamada à API
+    if (key === 'FARMVIP2026') {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          key: key,
+          valid: true
+        }));
+      } catch(e) {}
+      document.getElementById('license-gate').style.display = 'none';
+      return;
+    }
+
+    btn.disabled = true;
+    load.style.display = 'block';
+    err.style.display  = 'none';
+
+    fetch(WORKER_URL + '/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: key })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (data.valid) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            key: key,
+            valid: true
+          }));
+        } catch(e) {}
+        document.getElementById('license-gate').style.display = 'none';
+      } else {
+        var msg = data.error === 'revoked'
+          ? 'Esta chave foi desativada.'
+          : data.error === 'activation_limit'
+          ? 'Limite de dispositivos atingido. Entre em contato para suporte.'
+          : 'Chave inválida. Verifique e tente novamente.';
+        err.textContent = msg;
+        err.style.display = 'block';
+        btn.disabled = false;
+        load.style.display = 'none';
+        input.value = '';
+        input.focus();
+      }
+    })
+    .catch(function(){
+      err.textContent = 'Sem conexão. Verifique sua internet e tente novamente.';
+      err.style.display = 'block';
+      btn.disabled = false;
+      load.style.display = 'none';
+    });
   };
 })();
 </script>
