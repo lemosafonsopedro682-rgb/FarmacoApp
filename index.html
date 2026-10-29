@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Farmacologia – Médico Generalista</title>
   <script>
 /**
@@ -311,6 +311,10 @@ function(a,b,c){if(!Vd(b))throw Error(m(200));return Wd(null,a,b,!1,c)};Q.unmoun
   <style>
     html,body,#root{margin:0;padding:0;height:100%;}
     body{background:#f1f5f9;}
+  
+  /* iOS PWA safe area */
+  body { padding-top: env(safe-area-inset-top); }
+
   </style>
   <!-- PWA Meta Tags (Phase 4A) -->
   <meta name="theme-color" content="#6366f1"/>
